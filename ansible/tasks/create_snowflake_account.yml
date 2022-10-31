@@ -1,0 +1,26 @@
+---
+- hosts:                  localhost
+  gather_facts:           False
+  
+  tasks:
+    - name: Setting Pub value from openssl output
+      set_fact:
+        extracted_pub_value_stdout:  "{{ extracted_pub_value.stdout }}"
+
+    - name: Update create_user.sql with discovered variables
+      template: src=../sql/create_user.sql.template dest=../sql/create_user.sql
+      delegate_to: localhost
+
+    - name: Create Snowsql Account
+      shell:  |
+        snowsql -a {{ SF_ACCOUNT }} -u {{ SF_SERVICE_ACCOUNT_USER }} -f ../sql/create_user.sql
+    
+    - name: Alter Snowsql Account
+      shell:  |
+        snowsql -a {{ SF_ACCOUNT }} -u {{ SF_SERVICE_ACCOUNT_USER }} -q "alter user {{ SF_USER }} set rsa_public_key ='{{ extracted_pub_value_stdout }}';"
+    
+    - name: Describe User
+      shell:  |
+        snowsql -a {{ SF_ACCOUNT }} -u {{ SF_SERVICE_ACCOUNT_USER }} -q "desc user {{ SF_USER }};"
+      register: sql_output
+  

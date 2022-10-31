@@ -1,0 +1,26 @@
+---
+- hosts:                  localhost
+  gather_facts:           False
+  
+  tasks:
+    - name: Setting private key value from openssl output
+      set_fact:
+        p8_value_stdout:  "{{ p8_value.stdout }}"
+
+    - name: Create rsa_key.p8 file with discovered private key
+      template: src=../files/rsa_key.p8.template dest=../files/rsa_key.p8
+      delegate_to: localhost
+
+    - name: Describe User
+      shell:  |
+        snowsql -a {{ SF_ACCOUNT }} -u {{ SF_SERVICE_ACCOUNT_USER }} -q "desc user {{ SF_USER }};"
+      register: sql_output
+    - debug: msg="{{ sql_output.stdout }}"
+
+    - name: Test Snowflake Account
+      shell:  |
+        snowsql -a {{ SF_ACCOUNT }} -u {{ SF_USER }} --private-key-path ../files/rsa_key.p8 -q "select CURRENT_DATE();"
+      register: sql_output
+    - debug: msg="{{ sql_output.stdout }}"
+      
+    

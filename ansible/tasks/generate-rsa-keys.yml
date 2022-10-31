@@ -1,0 +1,65 @@
+---
+- hosts:                  localhost
+  gather_facts:           False
+  
+  vars:
+    tag_environment:    "{{ Environment }}"
+    tag_product:        "{{ Product }}"
+    tag_owner:          "{{ Owner }}"
+    private_key_name:   "{{ KEY_NAME_PRIVATE }}"       
+    public_key_name:    "{{ KEY_NAME_PUBLIC }}"
+    key_path:           "{{ KEY_PATH }}"
+    keyfile_dir:        "../Keyfile/"
+    file_name:          "rsa_key"
+
+  tasks:
+    - name: Create Keyfile directory if it does not exist
+      file:
+        path: "{{ keyfile_dir }}"
+        state: directory
+    
+    - name: Register tags
+      shell: |
+        cat <<EOF
+        [{"Key":"Environment","Value":"{{ tag_environment }}"},{"Key":"Product", "Value":"{{ tag_product }}"}, {"Key":"Owner", "Value":"{{ tag_owner }}"}]
+        EOF
+      register: tags
+    - debug:   msg="tag values are {{ tags.stdout }}"
+
+    - name: Create p8 file
+      shell: |
+        openssl genrsa 4096 | openssl pkcs8 -topk8 -inform PEM -out {{ file_name }}.p8 -nocrypt
+        cat {{ file_name }}.p8
+      register: p8_value
+    
+    - name: Create pub file
+      shell: |
+        openssl rsa -in {{ file_name }}.p8 -pubout -out {{keyfile_dir}}{{ file_name }}.pub
+        cat {{keyfile_dir}}{{ file_name }}.pub
+      register: pub_value
+    
+    - name: Extract public key file
+      shell: |
+        awk '/-END PUBLIC KEY-/ { p = 0 }; p; /-BEGIN PUBLIC KEY-/ { p = 1 }' {{keyfile_dir}}{{ file_name }}.pub
+      register: extracted_pub_value
+
+    - name: Aws ssm put-parameter private key
+      shell: | 
+        aws ssm put-parameter \
+          --type SecureString \
+          --name "{{ key_path }}/{{ private_key_name }}" \
+          --value "{{ p8_value.stdout }}" \
+          --tags {{ tags.stdout | to_json}}
+    
+    - name: Aws ssm put-parameter public key
+      shell: | 
+        aws ssm put-parameter \
+          --type SecureString \
+          --name "{{ key_path }}/{{ public_key_name }}" \
+          --value "{{ pub_value.stdout }}" \
+          --tags {{ tags.stdout | to_json}}
+
+
+
+
+   

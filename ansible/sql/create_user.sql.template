@@ -1,0 +1,2 @@
+create user {{ SF_USER }} password='{{ SF_USER_PASSWORD }}' default_role = myrole default_secondary_roles = ('ALL') must_change_password = false;
+desc user {{ SF_USER }};
